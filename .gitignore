@@ -1,0 +1,5 @@
+node_modules
+.next
+.auth
+.DS_Store
+npm-debug.log*

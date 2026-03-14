@@ -1,0 +1,37 @@
+services:
+  zap2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: zap2-local
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      PORT: 3000
+      HOST: 0.0.0.0
+      NODE_ENV: production
+      DATABASE_URL: postgresql://zap2:zap2@postgres:5432/zap2
+    volumes:
+      - zap2_auth:/app/.auth
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+  postgres:
+    image: postgres:16-alpine
+    container_name: zap2-postgres
+    environment:
+      POSTGRES_DB: zap2
+      POSTGRES_USER: zap2
+      POSTGRES_PASSWORD: zap2
+    volumes:
+      - zap2_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zap2 -d zap2"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  zap2_auth:
+  zap2_postgres:

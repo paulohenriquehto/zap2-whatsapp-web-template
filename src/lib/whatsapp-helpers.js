@@ -33,6 +33,15 @@ const safeLongToNumber = (value) => {
   return null;
 };
 
+const normalizeDisplayValue = (value) => {
+  if (typeof value !== 'string') {
+    return value ?? null;
+  }
+
+  const normalized = value.replace(/[\s\u2800]+/gu, ' ').trim();
+  return normalized || null;
+};
+
 export const normalizeJid = (jid) => {
   if (!jid) {
     return null;
@@ -61,12 +70,40 @@ export const getChatType = (jid) => {
   return 'direct';
 };
 
+export const isLidJid = (jid) => String(jid ?? '').endsWith('@lid');
+
 export const getPhoneNumberFromJid = (jid) => {
   if (!jid) {
     return null;
   }
 
-  return jid.split('@')[0] ?? null;
+  const [localPart = '', server = ''] = jid.split('@');
+
+  if (!localPart || ['g.us', 'broadcast', 'lid', 'newsletter'].includes(server)) {
+    return null;
+  }
+
+  const digitsOnly = localPart.replace(/\D/g, '');
+
+  return digitsOnly || localPart || null;
+};
+
+export const formatPhoneNumberForDisplay = (phoneNumber) => {
+  const digits = String(phoneNumber ?? '').replace(/\D/g, '');
+
+  if (!digits) {
+    return null;
+  }
+
+  if (digits.startsWith('55') && digits.length === 13) {
+    return `+${digits.slice(0, 2)} ${digits.slice(2, 4)} ${digits.slice(4, 9)}-${digits.slice(9)}`;
+  }
+
+  if (digits.startsWith('55') && digits.length === 12) {
+    return `+${digits.slice(0, 2)} ${digits.slice(2, 4)} ${digits.slice(4, 8)}-${digits.slice(8)}`;
+  }
+
+  return digits;
 };
 
 export const getChatContactJid = (chatJid) => {
@@ -154,23 +191,39 @@ export const getMessageTimestamp = (message) => {
 };
 
 export const getChatTitle = ({ chatJid, contact, fallbackName }) => {
-  if (contact?.name) {
-    return contact.name;
+  if (getChatType(chatJid) === 'group') {
+    const normalizedFallbackName = normalizeDisplayValue(fallbackName);
+    return normalizedFallbackName ?? chatJid ?? 'Grupo sem nome';
   }
 
-  if (contact?.notify) {
-    return contact.notify;
+  const contactName = normalizeDisplayValue(contact?.name);
+  if (contactName) {
+    return contactName;
   }
 
-  if (contact?.verifiedName) {
-    return contact.verifiedName;
+  const pushName = normalizeDisplayValue(contact?.notify);
+  if (pushName) {
+    return pushName;
   }
 
-  if (fallbackName) {
-    return fallbackName;
+  const verifiedName = normalizeDisplayValue(contact?.verifiedName);
+  if (verifiedName) {
+    return verifiedName;
   }
 
-  return getPhoneNumberFromJid(chatJid) ?? chatJid;
+  const normalizedFallbackName = normalizeDisplayValue(fallbackName);
+  if (normalizedFallbackName) {
+    return normalizedFallbackName;
+  }
+
+  if (isLidJid(chatJid)) {
+    return 'Contato WhatsApp';
+  }
+
+  return (
+    formatPhoneNumberForDisplay(getPhoneNumberFromJid(chatJid)) ??
+    chatJid
+  );
 };
 
 export const getMessageStatus = (message) => {

@@ -3,6 +3,10 @@ FROM node:22-bookworm-slim AS base
 ENV NODE_ENV=production
 WORKDIR /app
 
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ffmpeg \
+  && rm -rf /var/lib/apt/lists/*
+
 FROM base AS deps
 
 COPY package.json package-lock.json ./

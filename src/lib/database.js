@@ -91,6 +91,48 @@ CREATE TABLE IF NOT EXISTS wa_media (
 
 CREATE INDEX IF NOT EXISTS wa_media_chat_jid_idx
   ON wa_media (chat_jid, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS wa_labels (
+  id text PRIMARY KEY,
+  session_key text NOT NULL DEFAULT 'primary',
+  source text NOT NULL DEFAULT 'whatsapp',
+  name text NOT NULL,
+  color integer NOT NULL DEFAULT 0,
+  deleted boolean NOT NULL DEFAULT false,
+  predefined_id text,
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS wa_chat_labels (
+  chat_jid text NOT NULL REFERENCES wa_chats(chat_jid) ON DELETE CASCADE,
+  label_id text NOT NULL REFERENCES wa_labels(id) ON DELETE CASCADE,
+  session_key text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (chat_jid, label_id)
+);
+
+CREATE INDEX IF NOT EXISTS wa_chat_labels_label_id_idx
+  ON wa_chat_labels (label_id, created_at DESC);
+
+ALTER TABLE wa_labels
+  ADD COLUMN IF NOT EXISTS session_key text NOT NULL DEFAULT 'primary';
+
+ALTER TABLE wa_labels
+  ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'whatsapp';
+
+UPDATE wa_labels
+SET session_key = 'primary'
+WHERE session_key IS NULL;
+
+UPDATE wa_labels
+SET source = 'whatsapp'
+WHERE source IS NULL;
+
+CREATE INDEX IF NOT EXISTS wa_labels_session_source_idx
+  ON wa_labels (session_key, source, deleted, name);
 `;
 
 const buildPool = () =>

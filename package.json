@@ -13,8 +13,8 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
-    "baileys": "^6.7.21",
-    "jimp": "^1.6.0",
+    "baileys": "^6.17.16",
+    "jimp": "^0.16.13",
     "next": "^16.1.6",
     "pg": "^8.20.0",
     "pino": "^10.3.1",

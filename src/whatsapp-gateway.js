@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 import path from 'node:path';
 
 import makeWASocket, {
+  ALL_WA_PATCH_NAMES,
   downloadContentFromMessage,
   DisconnectReason,
   fetchLatestBaileysVersion,
@@ -16,11 +17,16 @@ import {
   buildChatTitle,
   hydrateHistorySet,
   persistMessage,
-  upsertAudioMedia,
-  upsertImageMedia,
+  removeChatLabelAssociation,
+  sanitizeContactPhoneNumbers,
+  updateContactPhoneNumber,
   updateProfilePhoto,
+  upsertAudioMedia,
   upsertChat,
+  upsertChatLabelAssociation,
+  upsertImageMedia,
   upsertContact,
+  upsertLabel,
   upsertSession,
 } from './lib/inbox-store.js';
 import {
@@ -37,6 +43,11 @@ import {
   getFileSize,
   writeMediaFile,
 } from './lib/media-storage.js';
+import {
+  needsAudioTranscode,
+  transcodeToVoiceNote,
+  VOICE_NOTE_MIME_TYPE,
+} from './lib/audio-transcoder.js';
 import { streamToBuffer } from './lib/stream-helpers.js';
 
 const buildTimestamp = () => new Date().toISOString();
@@ -46,7 +57,7 @@ export class WhatsAppGateway {
   constructor({ authFolder }) {
     this.authFolder = authFolder;
     this.events = new EventEmitter();
-    this.logger = pino({ level: 'silent' });
+    this.logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
     this.socket = null;
     this.reconnectTimer = null;
     this.isStarting = false;
@@ -123,6 +134,7 @@ export class WhatsAppGateway {
 
     try {
       await ensureDatabase();
+      await sanitizeContactPhoneNumbers();
       await ensureMediaDirectory();
 
       const { version } = await fetchLatestBaileysVersion();
@@ -166,6 +178,21 @@ export class WhatsAppGateway {
       });
       this.socket.ev.on('messages.update', (updates) => {
         void this.handleMessagesUpdate(updates);
+      });
+      this.socket.ev.on('groups.upsert', (groups) => {
+        void this.handleGroupsUpsert(groups);
+      });
+      this.socket.ev.on('groups.update', (groups) => {
+        void this.handleGroupsUpdate(groups);
+      });
+      this.socket.ev.on('chats.phoneNumberShare', (event) => {
+        void this.handlePhoneNumberShare(event);
+      });
+      this.socket.ev.on('labels.edit', (label) => {
+        void this.handleLabelEdit(label);
+      });
+      this.socket.ev.on('labels.association', (event) => {
+        void this.handleLabelAssociation(event);
       });
     } catch (error) {
       this.setState({
@@ -230,6 +257,8 @@ export class WhatsAppGateway {
       await this.syncSessionState('connected', {
         phoneNumber: accountLabel,
       });
+      await this.syncAppState();
+      await this.syncGroupMetadata();
       this.notifyInboxChanged({ scope: 'session' });
       return;
     }
@@ -305,7 +334,7 @@ export class WhatsAppGateway {
       await upsertChat({
         sessionKey: defaultSessionKey,
         chatJid,
-        title: chat?.name ?? null,
+        title: chat?.name ?? chat?.subject ?? null,
         unreadCount: chat?.unreadCount ?? null,
         archived: Boolean(chat?.archived),
         pinned: Boolean(chat?.pinned),
@@ -342,6 +371,91 @@ export class WhatsAppGateway {
     this.notifyInboxChanged({ scope: 'contacts' });
   };
 
+  handleGroupsUpsert = async (groups) => {
+    for (const group of groups ?? []) {
+      await upsertChat({
+        sessionKey: defaultSessionKey,
+        chatJid: group?.id,
+        title: group?.subject ?? null,
+        metadata: group,
+      });
+
+      void this.refreshProfilePhoto(group?.id);
+    }
+
+    this.notifyInboxChanged({ scope: 'groups.upsert' });
+  };
+
+  handleGroupsUpdate = async (groups) => {
+    for (const group of groups ?? []) {
+      const groupJid = normalizeJid(group?.id);
+
+      if (!groupJid) {
+        continue;
+      }
+
+      await upsertChat({
+        sessionKey: defaultSessionKey,
+        chatJid: groupJid,
+        title: group?.subject ?? null,
+        metadata: group,
+      });
+    }
+
+    this.notifyInboxChanged({ scope: 'groups.update' });
+  };
+
+  handlePhoneNumberShare = async ({ lid, jid }) => {
+    const normalizedLid = normalizeJid(lid);
+
+    if (!normalizedLid || !jid) {
+      return;
+    }
+
+    await updateContactPhoneNumber({
+      jid: normalizedLid,
+      phoneNumber: jid,
+      metadata: {
+        sharedPhoneJid: jid,
+      },
+    });
+
+    this.notifyInboxChanged({ scope: 'contacts.phone-share' });
+  };
+
+  handleLabelEdit = async (label) => {
+    await upsertLabel(label);
+    this.notifyInboxChanged({ scope: 'labels.edit', labelId: label?.id ?? null });
+  };
+
+  handleLabelAssociation = async ({ type, association }) => {
+    if (association?.type !== 'label_jid') {
+      return;
+    }
+
+    if (type === 'add') {
+      await upsertChatLabelAssociation({
+        chatJid: association.chatId,
+        labelId: association.labelId,
+        sessionKey: defaultSessionKey,
+      });
+    }
+
+    if (type === 'remove') {
+      await removeChatLabelAssociation({
+        chatJid: association.chatId,
+        labelId: association.labelId,
+      });
+    }
+
+    this.notifyInboxChanged({
+      scope: 'labels.association',
+      action: type,
+      chatJid: association.chatId,
+      labelId: association.labelId,
+    });
+  };
+
   handleMessagesUpsert = async (event) => {
     for (const message of event?.messages ?? []) {
       const result = await persistMessage({
@@ -356,6 +470,10 @@ export class WhatsAppGateway {
         const contactJid = getChatContactJid(result.chatJid) ?? result.chatJid;
         void this.refreshProfilePhoto(contactJid);
       }
+
+      if (result?.participantContactJid) {
+        void this.refreshProfilePhoto(result.participantContactJid);
+      }
     }
 
     this.notifyInboxChanged({ scope: 'messages' });
@@ -367,6 +485,42 @@ export class WhatsAppGateway {
     }
 
     this.notifyInboxChanged({ scope: 'messages.update' });
+  };
+
+  syncGroupMetadata = async () => {
+    if (!this.socket) {
+      return;
+    }
+
+    const groups = await this.socket.groupFetchAllParticipating();
+
+    for (const group of Object.values(groups ?? {})) {
+      await upsertChat({
+        sessionKey: defaultSessionKey,
+        chatJid: group?.id,
+        title: group?.subject ?? null,
+        metadata: group,
+      });
+
+      void this.refreshProfilePhoto(group?.id);
+    }
+  };
+
+  syncAppState = async () => {
+    if (!this.socket) {
+      return;
+    }
+
+    try {
+      await this.socket.resyncAppState(ALL_WA_PATCH_NAMES, true);
+    } catch (error) {
+      this.logger.debug(
+        {
+          err: error instanceof Error ? error.message : error,
+        },
+        'failed to resync whatsapp app state',
+      );
+    }
   };
 
   persistMediaAttachment = async (message, persistedMessage) => {
@@ -465,9 +619,8 @@ export class WhatsAppGateway {
     } catch {}
   };
 
-  sendTextMessage = async ({ chatJid, text }) => {
+  assertReadyToSend = (chatJid) => {
     const normalizedChatJid = normalizeJid(chatJid);
-    const trimmedText = text?.trim();
 
     if (!this.socket || this.state.status !== 'connected') {
       throw new Error('A sessao do WhatsApp nao esta conectada.');
@@ -476,6 +629,47 @@ export class WhatsAppGateway {
     if (!normalizedChatJid) {
       throw new Error('Conversa invalida para envio.');
     }
+
+    return normalizedChatJid;
+  };
+
+  persistOutboundAudio = async ({
+    chatJid,
+    messageId,
+    messagePk,
+    buffer,
+    mimeType,
+    durationSeconds,
+  }) => {
+    if (!messagePk || !messageId || !buffer?.length) {
+      return;
+    }
+
+    const { relativePath, absolutePath } = buildMediaStoragePath({
+      chatJid,
+      messageId,
+      mimeType,
+    });
+
+    await writeMediaFile({
+      absolutePath,
+      buffer,
+    });
+
+    await upsertAudioMedia({
+      messagePk,
+      chatJid,
+      messageId,
+      mimeType,
+      fileSizeBytes: await getFileSize(absolutePath),
+      durationSeconds,
+      storagePath: relativePath,
+    });
+  };
+
+  sendTextMessage = async ({ chatJid, text }) => {
+    const normalizedChatJid = this.assertReadyToSend(chatJid);
+    const trimmedText = text?.trim();
 
     if (!trimmedText) {
       throw new Error('A mensagem nao pode ser vazia.');
@@ -496,5 +690,101 @@ export class WhatsAppGateway {
     this.notifyInboxChanged({ scope: 'send', chatJid: normalizedChatJid });
 
     return response;
+  };
+
+  sendAudioMessage = async ({
+    chatJid,
+    buffer,
+    mimeType = 'audio/webm',
+    durationSeconds = null,
+  }) => {
+    const normalizedChatJid = this.assertReadyToSend(chatJid);
+
+    if (!buffer?.length) {
+      throw new Error('O audio nao pode ser vazio.');
+    }
+
+    const preparedAudio = needsAudioTranscode(mimeType)
+      ? await transcodeToVoiceNote({ buffer, mimeType })
+      : {
+          buffer,
+          mimeType: VOICE_NOTE_MIME_TYPE,
+        };
+
+    const response = await this.socket.sendMessage(normalizedChatJid, {
+      audio: preparedAudio.buffer,
+      mimetype: preparedAudio.mimeType,
+      ptt: true,
+    });
+
+    if (response) {
+      const persisted = await persistMessage({
+        sessionKey: defaultSessionKey,
+        message: response,
+        upsertType: 'append',
+      });
+
+      await this.persistOutboundAudio({
+        chatJid: normalizedChatJid,
+        messageId: response?.key?.id ?? null,
+        messagePk: persisted?.messagePk ?? null,
+        buffer: preparedAudio.buffer,
+        mimeType: preparedAudio.mimeType,
+        durationSeconds:
+          typeof durationSeconds === 'number' && Number.isFinite(durationSeconds)
+            ? Math.max(0, Math.round(durationSeconds))
+            : null,
+      });
+    }
+
+    this.notifyInboxChanged({
+      scope: 'send.audio',
+      chatJid: normalizedChatJid,
+    });
+
+    return response;
+  };
+
+  addChatLabel = async ({ chatJid, labelId }) => {
+    const normalizedChatJid = this.assertReadyToSend(chatJid);
+    const normalizedLabelId = String(labelId ?? '').trim();
+
+    if (!normalizedLabelId) {
+      throw new Error('Tag invalida para este chat.');
+    }
+
+    await this.socket.addChatLabel(normalizedChatJid, normalizedLabelId);
+    await upsertChatLabelAssociation({
+      chatJid: normalizedChatJid,
+      labelId: normalizedLabelId,
+      sessionKey: defaultSessionKey,
+    });
+
+    this.notifyInboxChanged({
+      scope: 'labels.chat.add',
+      chatJid: normalizedChatJid,
+      labelId: normalizedLabelId,
+    });
+  };
+
+  removeChatLabel = async ({ chatJid, labelId }) => {
+    const normalizedChatJid = this.assertReadyToSend(chatJid);
+    const normalizedLabelId = String(labelId ?? '').trim();
+
+    if (!normalizedLabelId) {
+      throw new Error('Tag invalida para este chat.');
+    }
+
+    await this.socket.removeChatLabel(normalizedChatJid, normalizedLabelId);
+    await removeChatLabelAssociation({
+      chatJid: normalizedChatJid,
+      labelId: normalizedLabelId,
+    });
+
+    this.notifyInboxChanged({
+      scope: 'labels.chat.remove',
+      chatJid: normalizedChatJid,
+      labelId: normalizedLabelId,
+    });
   };
 }

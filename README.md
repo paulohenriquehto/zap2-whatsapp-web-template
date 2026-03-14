@@ -37,6 +37,7 @@ Use este projeto quando voce precisar:
 - [Documentacao principal](./docs/whatsapp-web-template/README.md)
 - [Projeto novo](./docs/whatsapp-web-template/projeto-novo.md)
 - [Projeto existente](./docs/whatsapp-web-template/projeto-existente.md)
+- [Modos de integracao](./docs/whatsapp-web-template/modos-de-integracao.md)
 - [Banco de dados](./docs/whatsapp-web-template/banco-de-dados.md)
 - [API e eventos](./docs/whatsapp-web-template/api-e-eventos.md)
 - [Guia para integracao guiada por IA](./docs/whatsapp-web-template/guia-para-ia.md)
@@ -55,9 +56,19 @@ O passo correto e:
 4. descobrir se ja existe autenticacao, autorizacao e ownership de clientes
 5. decidir se esta integracao deve ser interna ou se este modulo deve rodar como servico isolado
 
+Depois dessa leitura tecnica, a IA deve perguntar ao usuario o que nao pode ser inferido com seguranca:
+
+1. voce quer a integracao em pasta/modulo isolado, que e o formato recomendado?
+2. voce quer unificar esse codigo com o projeto principal sem perder nada do sistema atual?
+3. qual nome a nova pagina deve ter no menu lateral: `Chat`, `WhatsApp` ou outro nome do produto?
+4. o modulo vai rodar com os containers proprios do Zap2?
+5. o modulo vai usar o banco atual do projeto ou um PostgreSQL dedicado?
+
 Se o projeto host for novo, voce pode seguir a implantacao completa deste template, com PostgreSQL, tabelas `wa_*`, persistencia de credenciais e persistencia de midia.
 
 Se o projeto host ja existir, primeiro analise o banco e a arquitetura antes de criar qualquer tabela ou mover qualquer codigo. Nao substitua estruturas do sistema principal sem necessidade. Adapte a integracao com cuidado.
+
+Para CRM ou sistema grande ja em operacao, o caminho padrao recomendado e manter Zap2 em uma pasta/aplicacao dedicada dentro do workspace do cliente, por exemplo `apps/whatsapp`, `services/zap2` ou `integrations/zap2`, criar uma nova pagina `Chat` ou `WhatsApp` no menu lateral e rodar os containers do modulo sem misturar tudo no codigo central do CRM.
 
 Em projetos PHP, Java, .NET ou stacks nao-Node, a estrategia normalmente correta nao e portar Baileys para dentro do backend principal. O caminho mais seguro costuma ser manter este modulo como servico Node.js especializado e integrar por rota, subdominio, reverse proxy, SSO e API.
 
@@ -65,6 +76,7 @@ Se estiver em duvida, leia primeiro:
 
 - [Documentacao principal](./docs/whatsapp-web-template/README.md)
 - [Projeto existente](./docs/whatsapp-web-template/projeto-existente.md)
+- [Modos de integracao](./docs/whatsapp-web-template/modos-de-integracao.md)
 - [Banco de dados](./docs/whatsapp-web-template/banco-de-dados.md)
 - [Guia para integracao guiada por IA](./docs/whatsapp-web-template/guia-para-ia.md)
 

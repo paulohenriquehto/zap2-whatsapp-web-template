@@ -36,6 +36,10 @@ Se o projeto host for novo, a IA pode usar o fluxo completo do template.
 
 Se o projeto host ja existir, a IA deve primeiro entender a arquitetura em vez de sair copiando tabelas, rotas e componentes.
 
+Depois da analise tecnica, a IA deve confirmar com o usuario a estrategia de integracao. O ponto principal aqui e simples: em sistema existente, o modo recomendado e manter Zap2 em uma pasta/modulo dedicado, subir os containers do modulo e criar uma nova pagina `Chat` ou `WhatsApp` no menu lateral do produto host.
+
+Leitura complementar: [Modos de integracao](./modos-de-integracao.md)
+
 ## 2. Stack real utilizada
 
 ### Frontend
@@ -166,7 +170,7 @@ Leitura: [Projeto novo](./projeto-novo.md)
 
 ### Estrategia B | Projeto existente em Next.js / Node.js
 
-Integre o modulo dentro do mesmo codigo, mantendo os boundaries de pasta, servicos e banco.
+Integre o modulo sem espalhar arquivos. O formato preferido e criar uma pasta/aplicacao propria para o contexto WhatsApp dentro do workspace do sistema host, mantendo boundaries claros de pasta, servicos e banco.
 
 Quando preferir:
 
@@ -207,6 +211,7 @@ Motivo:
 
 - [Projeto novo](./projeto-novo.md)
 - [Projeto existente](./projeto-existente.md)
+- [Modos de integracao](./modos-de-integracao.md)
 - [Banco de dados](./banco-de-dados.md)
 - [API e eventos](./api-e-eventos.md)
 - [Guia para IA](./guia-para-ia.md)

@@ -10,6 +10,22 @@ A pergunta correta e:
 
 "Qual fronteira de integracao preserva melhor o sistema host?"
 
+Na maioria dos casos, a resposta mais segura sera:
+
+"colocar Zap2 em uma pasta/modulo proprio, conectar ao sistema atual e criar uma nova pagina `Chat` ou `WhatsApp` no menu lateral."
+
+## 1.1 Perguntas que a IA deve fazer ao usuario
+
+Mesmo depois de analisar o codigo, existem decisoes que precisam ser confirmadas.
+
+A IA deve perguntar:
+
+- voce quer o formato recomendado em pasta/modulo isolado?
+- voce quer unificar esse codigo com o projeto principal sem perder nada do que ja existe?
+- qual nome deve aparecer no menu lateral: `Chat`, `WhatsApp` ou outro?
+- o modulo vai subir com os containers proprios do Zap2?
+- o banco sera adaptado no banco atual ou sera usado um PostgreSQL dedicado?
+
 ## 2. Matriz de decisao
 
 ### Caso A | Sistema host ja usa Next.js / Node.js
@@ -57,7 +73,21 @@ Tentar migrar isso para PHP ou Java dentro do backend principal gera:
 
 ## 4. Duas formas validas de integrar
 
-### Forma 1 | Integracao interna no mesmo app
+### Forma 1 | Integracao em pasta/modulo isolado
+
+Esta e a forma recomendada para projeto existente.
+
+Use se o host for CRM, ERP ou software maduro e o usuario quiser preservar os dois lados da integracao.
+
+Nesse formato:
+
+1. o codigo do Zap2 entra em uma pasta dedicada, como `apps/whatsapp`, `services/zap2` ou `integrations/whatsapp`
+2. os containers do proprio modulo continuam existindo
+3. o sistema host ganha uma nova pagina no menu lateral chamada `Chat` ou `WhatsApp`
+4. auth, permissao e ownership sao conectados ao sistema principal
+5. o restante do CRM continua intacto
+
+### Forma 2 | Integracao interna no mesmo app
 
 Use se o host for Next.js/Node e o time aceitar incorporar:
 
@@ -116,7 +146,8 @@ Recomendacao pratica:
 
 ### Em projeto Next.js
 
-- mover componentes e rotas para um bounded context tipo `src/modules/whatsapp`
+- preferir uma pasta/aplicacao dedicada do contexto WhatsApp dentro do workspace
+- se a integracao for realmente interna, mover componentes e rotas para um bounded context tipo `src/modules/whatsapp`
 - adaptar auth
 - adaptar layout
 - adaptar rotas
@@ -203,7 +234,8 @@ Melhor caminho:
 
 ### Checklist arquitetural
 
-- definir se a integracao sera embed ou sidecar
+- perguntar ao usuario se ele quer modo pasta/modulo isolado ou unificacao
+- definir se a integracao sera embed, pasta dedicada ou sidecar
 - definir ownership da sessao WhatsApp
 - definir estrategia de auth
 - definir estrategia de banco
@@ -211,7 +243,8 @@ Melhor caminho:
 
 ### Checklist tecnico
 
-- mapear rotas que entrarao no menu do host
+- criar ou mapear a nova pagina `Chat` ou `WhatsApp` no menu do host
+- decidir em qual pasta/modulo o Zap2 ficara dentro do workspace do cliente
 - mapear storage persistente
 - mapear observabilidade e logs
 - mapear backup de `.auth` e `storage/media`

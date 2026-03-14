@@ -1,4 +1,4 @@
-# Painel Interno de Conversas WhatsApp
+# Conversas WhatsApp
 
 ## Goal
 Transformar a tela atual de QR em um inbox estilo WhatsApp Web, com lista de conversas na lateral, chat ativo na direita, persistencia em PostgreSQL, sincronizacao de mensagens recebidas/enviadas e fotos de perfil.

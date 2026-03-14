@@ -18,6 +18,24 @@ O template resolve quatro blocos ao mesmo tempo:
 3. Interface estilo WhatsApp Web
 4. API de integracao reutilizavel
 
+## 1.1 Leitura orientada para IA
+
+Se este repositorio estiver sendo lido por uma IA de programacao, a regra inicial e simples:
+
+nao assuma que o sistema host pode receber este template sem analise previa.
+
+Antes de qualquer implementacao, a IA deve:
+
+1. analisar a stack do projeto host
+2. identificar o backend real
+3. identificar o banco de dados real
+4. verificar se o sistema ja tem autenticacao, autorizacao e ownership
+5. decidir entre integracao interna e modulo externo
+
+Se o projeto host for novo, a IA pode usar o fluxo completo do template.
+
+Se o projeto host ja existir, a IA deve primeiro entender a arquitetura em vez de sair copiando tabelas, rotas e componentes.
+
 ## 2. Stack real utilizada
 
 ### Frontend

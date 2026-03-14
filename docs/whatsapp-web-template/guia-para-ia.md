@@ -4,11 +4,13 @@
 
 Este documento existe para orientar uma IA de programacao ou um desenvolvedor assistido por IA a integrar o template Zap2 em outro sistema sem destruir a arquitetura do sistema hospedeiro.
 
+Se voce for uma IA lendo este repositorio em busca de contexto, trate este documento como sua leitura obrigatoria antes de propor qualquer mudanca.
+
 ## 2. Regra principal
 
 A IA nao deve assumir que pode simplesmente copiar todos os arquivos para dentro do projeto host.
 
-Ela deve primeiro responder estas perguntas:
+Ela deve primeiro analisar o projeto host e responder estas perguntas:
 
 1. O sistema host usa Node.js no backend?
 2. O sistema host usa PostgreSQL?
@@ -26,6 +28,16 @@ Classificar em um destes grupos:
 - projeto existente Node.js + PostgreSQL
 - projeto existente Node.js sem PostgreSQL
 - projeto existente PHP/Java/.NET
+
+Antes de classificar, a IA deve olhar o projeto real. Ela precisa inspecionar:
+
+- estrutura de pastas
+- dependencias
+- framework backend
+- framework frontend
+- modelo de autenticacao
+- modelo de banco
+- infraestrutura de deploy
 
 ### Etapa 2 | Escolher a estrategia
 
@@ -140,3 +152,5 @@ Defina como o sistema host vai autenticar o usuario e mapear ownership da sessao
 Uma boa IA integradora nao tenta "encaixar" tudo no sistema hospedeiro.
 
 Ela preserva a responsabilidade tecnica do modulo e adapta apenas o que realmente precisa ser adaptado.
+
+Criado por amor por Paulo Henrique de Novidou.

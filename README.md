@@ -84,4 +84,4 @@ Se estiver em duvida, leia primeiro:
 
 Este template esta pronto para um caso de sessao principal (`session_key = 'primary'`), o que o torna excelente como base inicial e template funcional. Para uso multi-tenant ou multi-conta em CRMs maiores, a camada de sessao deve ser promovida para um modelo por empresa, por numero ou por canal.
 
-Criado por amor por Paulo Henrique de Novidou.
+Criado por Paulo Henrique 

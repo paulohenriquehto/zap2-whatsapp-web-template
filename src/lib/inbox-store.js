@@ -42,7 +42,33 @@ const mapMessageRow = (row) => ({
   quotedMessageId: row.quoted_message_id,
   status: row.status,
   sentAt: row.sent_at,
+  media: row.media_id
+    ? {
+        id: row.media_id,
+        kind: row.media_kind,
+        mimeType: row.mime_type,
+        fileSizeBytes: row.file_size_bytes,
+        durationSeconds: row.duration_seconds,
+        url: `/api/media/${row.media_id}`,
+      }
+    : null,
 });
+
+const buildLastMessagePreview = ({ textBody, messageType }) => {
+  if (textBody) {
+    return textBody;
+  }
+
+  if (messageType === 'imageMessage') {
+    return 'Imagem';
+  }
+
+  if (messageType === 'audioMessage') {
+    return 'Audio';
+  }
+
+  return '';
+};
 
 export const upsertSession = async ({
   sessionKey = defaultSessionKey,
@@ -245,11 +271,12 @@ export const persistMessage = async ({
   const recipientJid = fromMe ? normalizeJid(message?.key?.remoteJid) : null;
   const textBody = getMessageText(message);
   const messageType = getMessageType(message);
+  const lastMessagePreview = buildLastMessagePreview({ textBody, messageType });
   const sentAt = getMessageTimestamp(message);
   const status = getMessageStatus(message);
   const contactJid = getChatContactJid(chatJid);
 
-  await transaction(async (client) => {
+  const persisted = await transaction(async (client) => {
     if (contactJid) {
       await client.query(
         `
@@ -288,7 +315,7 @@ export const persistMessage = async ({
       [chatJid, sessionKey, contactJid, getChatType(chatJid)],
     );
 
-    await client.query(
+    const insertResult = await client.query(
       `
         INSERT INTO wa_messages (
           chat_jid,
@@ -324,6 +351,7 @@ export const persistMessage = async ({
           sent_at = EXCLUDED.sent_at,
           raw_payload = EXCLUDED.raw_payload,
           updated_at = now()
+        RETURNING id
       `,
       [
         chatJid,
@@ -359,14 +387,20 @@ export const persistMessage = async ({
       [
         chatJid,
         messageId,
-        textBody,
+        lastMessagePreview,
         sentAt,
         upsertType === 'notify' && !fromMe,
       ],
     );
+
+    return {
+      messagePk: insertResult.rows[0]?.id ?? null,
+      chatJid,
+      messageId,
+    };
   });
 
-  return { chatJid, messageId };
+  return persisted;
 };
 
 export const applyMessageUpdate = async ({ key, update }) => {
@@ -431,21 +465,28 @@ export const listMessages = async ({ chatJid, limit = 80 }) => {
   const result = await query(
     `
       SELECT
-        id,
-        chat_jid,
-        message_id,
-        sender_jid,
-        recipient_jid,
-        participant_jid,
-        from_me,
-        message_type,
-        text_body,
-        quoted_message_id,
-        status,
-        sent_at
-      FROM wa_messages
-      WHERE chat_jid = $1
-      ORDER BY sent_at DESC, id DESC
+        wm.id,
+        wm.chat_jid,
+        wm.message_id,
+        wm.sender_jid,
+        wm.recipient_jid,
+        wm.participant_jid,
+        wm.from_me,
+        wm.message_type,
+        wm.text_body,
+        wm.quoted_message_id,
+        wm.status,
+        wm.sent_at,
+        m.id AS media_id,
+        m.media_kind,
+        m.mime_type,
+        m.file_size_bytes,
+        m.duration_seconds
+      FROM wa_messages wm
+      LEFT JOIN wa_media m
+        ON m.message_pk = wm.id
+      WHERE wm.chat_jid = $1
+      ORDER BY wm.sent_at DESC, wm.id DESC
       LIMIT $2
     `,
     [normalizedChatJid, limit],
@@ -462,6 +503,102 @@ export const listMessages = async ({ chatJid, limit = 80 }) => {
   );
 
   return result.rows.reverse().map(mapMessageRow);
+};
+
+export const upsertAudioMedia = async ({
+  messagePk,
+  chatJid,
+  messageId,
+  mimeType,
+  fileSizeBytes,
+  durationSeconds,
+  storagePath,
+}) => {
+  await query(
+    `
+      INSERT INTO wa_media (
+        message_pk,
+        chat_jid,
+        message_id,
+        media_kind,
+        mime_type,
+        file_size_bytes,
+        duration_seconds,
+        storage_path,
+        updated_at
+      )
+      VALUES ($1, $2, $3, 'audio', $4, $5, $6, $7, now())
+      ON CONFLICT (message_pk) DO UPDATE SET
+        mime_type = COALESCE(EXCLUDED.mime_type, wa_media.mime_type),
+        file_size_bytes = COALESCE(EXCLUDED.file_size_bytes, wa_media.file_size_bytes),
+        duration_seconds = COALESCE(EXCLUDED.duration_seconds, wa_media.duration_seconds),
+        storage_path = EXCLUDED.storage_path,
+        updated_at = now()
+    `,
+    [
+      messagePk,
+      chatJid,
+      messageId,
+      mimeType,
+      fileSizeBytes,
+      durationSeconds,
+      storagePath,
+    ],
+  );
+};
+
+export const upsertImageMedia = async ({
+  messagePk,
+  chatJid,
+  messageId,
+  mimeType,
+  fileSizeBytes,
+  storagePath,
+}) => {
+  await query(
+    `
+      INSERT INTO wa_media (
+        message_pk,
+        chat_jid,
+        message_id,
+        media_kind,
+        mime_type,
+        file_size_bytes,
+        storage_path,
+        updated_at
+      )
+      VALUES ($1, $2, $3, 'image', $4, $5, $6, now())
+      ON CONFLICT (message_pk) DO UPDATE SET
+        mime_type = COALESCE(EXCLUDED.mime_type, wa_media.mime_type),
+        file_size_bytes = COALESCE(EXCLUDED.file_size_bytes, wa_media.file_size_bytes),
+        storage_path = EXCLUDED.storage_path,
+        updated_at = now()
+    `,
+    [messagePk, chatJid, messageId, mimeType, fileSizeBytes, storagePath],
+  );
+};
+
+export const getMediaById = async (mediaId) => {
+  const result = await query(
+    `
+      SELECT
+        id,
+        message_pk,
+        chat_jid,
+        message_id,
+        media_kind,
+        mime_type,
+        file_size_bytes,
+        duration_seconds,
+        storage_path
+      FROM wa_media
+      WHERE id = $1
+      LIMIT 1
+    `,
+    [mediaId],
+  );
+
+  return result.rows[0] ?? null;
 };
 
 export const getChat = async (chatJid) => {

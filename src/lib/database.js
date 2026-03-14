@@ -72,6 +72,25 @@ CREATE INDEX IF NOT EXISTS wa_chats_last_message_at_idx
 
 CREATE INDEX IF NOT EXISTS wa_messages_chat_jid_sent_at_idx
   ON wa_messages (chat_jid, sent_at DESC, id DESC);
+
+CREATE TABLE IF NOT EXISTS wa_media (
+  id bigserial PRIMARY KEY,
+  message_pk bigint NOT NULL REFERENCES wa_messages(id) ON DELETE CASCADE,
+  chat_jid text NOT NULL REFERENCES wa_chats(chat_jid) ON DELETE CASCADE,
+  message_id text NOT NULL,
+  media_kind text NOT NULL,
+  mime_type text,
+  file_size_bytes bigint,
+  duration_seconds integer,
+  storage_path text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (message_pk),
+  UNIQUE (chat_jid, message_id, media_kind)
+);
+
+CREATE INDEX IF NOT EXISTS wa_media_chat_jid_idx
+  ON wa_media (chat_jid, created_at DESC);
 `;
 
 const buildPool = () =>

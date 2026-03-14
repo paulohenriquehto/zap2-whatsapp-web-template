@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 import path from 'node:path';
 
 import makeWASocket, {
+  downloadContentFromMessage,
   DisconnectReason,
   fetchLatestBaileysVersion,
   useMultiFileAuthState,
@@ -15,12 +16,28 @@ import {
   buildChatTitle,
   hydrateHistorySet,
   persistMessage,
+  upsertAudioMedia,
+  upsertImageMedia,
   updateProfilePhoto,
   upsertChat,
   upsertContact,
   upsertSession,
 } from './lib/inbox-store.js';
-import { getChatContactJid, normalizeJid } from './lib/whatsapp-helpers.js';
+import {
+  getAudioPayload,
+  getChatContactJid,
+  getImagePayload,
+  isAudioMessage,
+  isImageMessage,
+  normalizeJid,
+} from './lib/whatsapp-helpers.js';
+import {
+  buildMediaStoragePath,
+  ensureMediaDirectory,
+  getFileSize,
+  writeMediaFile,
+} from './lib/media-storage.js';
+import { streamToBuffer } from './lib/stream-helpers.js';
 
 const buildTimestamp = () => new Date().toISOString();
 const defaultSessionKey = 'primary';
@@ -106,6 +123,7 @@ export class WhatsAppGateway {
 
     try {
       await ensureDatabase();
+      await ensureMediaDirectory();
 
       const { version } = await fetchLatestBaileysVersion();
       const { state, saveCreds } = await useMultiFileAuthState(
@@ -257,6 +275,18 @@ export class WhatsAppGateway {
       messages: event?.messages ?? [],
     });
 
+    for (const message of event?.messages ?? []) {
+      if (isAudioMessage(message) || isImageMessage(message)) {
+        const persisted = await persistMessage({
+          sessionKey: defaultSessionKey,
+          message,
+          upsertType: 'append',
+        });
+
+        await this.persistMediaAttachment(message, persisted);
+      }
+    }
+
     for (const contact of event?.contacts ?? []) {
       void this.refreshProfilePhoto(contact?.id ?? contact?.jid);
     }
@@ -320,6 +350,8 @@ export class WhatsAppGateway {
         upsertType: event?.type ?? 'append',
       });
 
+      await this.persistMediaAttachment(message, result);
+
       if (result?.chatJid) {
         const contactJid = getChatContactJid(result.chatJid) ?? result.chatJid;
         void this.refreshProfilePhoto(contactJid);
@@ -335,6 +367,71 @@ export class WhatsAppGateway {
     }
 
     this.notifyInboxChanged({ scope: 'messages.update' });
+  };
+
+  persistMediaAttachment = async (message, persistedMessage) => {
+    if (!this.socket || !persistedMessage?.messagePk) {
+      return;
+    }
+
+    const chatJid = normalizeJid(message?.key?.remoteJid);
+    const messageId = message?.key?.id;
+    const audioPayload = getAudioPayload(message);
+    const imagePayload = getImagePayload(message);
+    const payload = audioPayload ?? imagePayload;
+    const mediaKind = audioPayload ? 'audio' : imagePayload ? 'image' : null;
+
+    if (!chatJid || !messageId || !payload?.mediaKey || !mediaKind) {
+      return;
+    }
+
+    try {
+      const mediaStream = await downloadContentFromMessage(payload, mediaKind);
+      const mediaBuffer = await streamToBuffer(mediaStream);
+      const { relativePath, absolutePath } = buildMediaStoragePath({
+        chatJid,
+        messageId,
+        mimeType: payload.mimetype,
+      });
+
+      await writeMediaFile({
+        absolutePath,
+        buffer: mediaBuffer,
+      });
+
+      if (mediaKind === 'audio') {
+        await upsertAudioMedia({
+          messagePk: persistedMessage.messagePk,
+          chatJid,
+          messageId,
+          mimeType: payload.mimetype ?? 'audio/ogg',
+          fileSizeBytes: await getFileSize(absolutePath),
+          durationSeconds: payload.seconds ?? null,
+          storagePath: relativePath,
+        });
+      } else if (mediaKind === 'image') {
+        await upsertImageMedia({
+          messagePk: persistedMessage.messagePk,
+          chatJid,
+          messageId,
+          mimeType: payload.mimetype ?? 'image/jpeg',
+          fileSizeBytes: await getFileSize(absolutePath),
+          storagePath: relativePath,
+        });
+      }
+
+      this.notifyInboxChanged({ scope: 'media', chatJid, messageId, mediaKind });
+    } catch (error) {
+      this.logger.debug(
+        {
+          chatJid,
+          messageId,
+          mediaKind,
+          err: error instanceof Error ? error.message : error,
+        },
+        'failed to persist media attachment',
+      );
+    }
   };
 
   refreshProfilePhoto = async (jid) => {

@@ -133,6 +133,20 @@ export const getMessageType = (message) => {
   return getContentType(normalized) ?? 'unknown';
 };
 
+export const getAudioPayload = (message) => {
+  const normalized = normalizeMessageContent(message?.message);
+  return normalized?.audioMessage ?? null;
+};
+
+export const isAudioMessage = (message) => Boolean(getAudioPayload(message));
+
+export const getImagePayload = (message) => {
+  const normalized = normalizeMessageContent(message?.message);
+  return normalized?.imageMessage ?? null;
+};
+
+export const isImageMessage = (message) => Boolean(getImagePayload(message));
+
 export const getMessageTimestamp = (message) => {
   const seconds = safeLongToNumber(message?.messageTimestamp);
   const epoch = seconds ? seconds * 1000 : Date.now();

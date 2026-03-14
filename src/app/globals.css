@@ -33,6 +33,10 @@ body {
   font-family: 'Manrope', sans-serif;
 }
 
+body.wa-lightbox-open {
+  overflow: hidden;
+}
+
 body::before {
   content: '';
   position: fixed;
@@ -620,6 +624,7 @@ body.wa-mode-inbox {
   margin: 0;
   line-height: 1.5;
   white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .wa-bubble footer {
@@ -638,6 +643,245 @@ body.wa-mode-inbox {
 .wa-bubble-out {
   justify-self: end;
   background: #005c4b;
+}
+
+.wa-voice-note {
+  min-width: min(280px, 68vw);
+  display: grid;
+  gap: 10px;
+}
+
+.wa-voice-note-main {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.wa-voice-note-button {
+  width: 42px;
+  height: 42px;
+  border: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.18);
+  color: #f7fffb;
+  flex: none;
+}
+
+.wa-voice-note-in .wa-voice-note-button {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.wa-voice-note-icon-play {
+  width: 0;
+  height: 0;
+  border-top: 9px solid transparent;
+  border-bottom: 9px solid transparent;
+  border-left: 14px solid currentColor;
+  margin-left: 4px;
+}
+
+.wa-voice-note-icon-pause {
+  width: 14px;
+  height: 16px;
+  position: relative;
+}
+
+.wa-voice-note-icon-pause::before,
+.wa-voice-note-icon-pause::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 4px;
+  height: 16px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.wa-voice-note-icon-pause::before {
+  left: 1px;
+}
+
+.wa-voice-note-icon-pause::after {
+  right: 1px;
+}
+
+.wa-voice-note-track {
+  position: relative;
+  height: 28px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.wa-voice-note-track-base,
+.wa-voice-note-track-fill {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  height: 6px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+}
+
+.wa-voice-note-track-base {
+  width: 100%;
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.35) 2px, transparent 2.5px);
+  background-size: 10px 6px;
+  background-repeat: repeat-x;
+}
+
+.wa-voice-note-track-fill {
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.95) 2px, transparent 2.5px);
+  background-size: 10px 6px;
+  background-repeat: repeat-x;
+}
+
+.wa-voice-note-track-thumb {
+  position: absolute;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: #f5f7f6;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08);
+}
+
+.wa-voice-note-meta-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.8rem;
+}
+
+.wa-voice-note-duration,
+.wa-voice-note-sent-at {
+  line-height: 1;
+}
+
+.wa-image-card {
+  margin: 0;
+  display: grid;
+  gap: 10px;
+  min-width: min(240px, 60vw);
+}
+
+.wa-image-trigger {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+}
+
+.wa-image-preview {
+  display: block;
+  width: 100%;
+  max-width: 360px;
+  max-height: 420px;
+  height: auto;
+  object-fit: contain;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.wa-image-caption {
+  margin: 0;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.wa-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  background: rgba(3, 10, 14, 0.82);
+  backdrop-filter: blur(12px);
+}
+
+.wa-lightbox-panel {
+  width: min(1040px, 100%);
+  max-height: min(92vh, 920px);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 24px;
+  background: rgba(17, 27, 33, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+}
+
+.wa-lightbox-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.wa-lightbox-zoom-readout {
+  color: #d9fdd3;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.wa-lightbox-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wa-lightbox-actions button {
+  border: 0;
+  border-radius: 999px;
+  min-width: 52px;
+  padding: 10px 14px;
+  background: #22303a;
+  color: #e9edef;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.wa-lightbox-actions button:last-child {
+  background: #00a884;
+  color: #081b16;
+}
+
+.wa-lightbox-stage {
+  overflow: auto;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at center, rgba(32, 201, 99, 0.08), transparent 48%),
+    #0b141a;
+}
+
+.wa-lightbox-image {
+  display: block;
+  max-width: min(88vw, 920px);
+  max-height: min(72vh, 760px);
+  transform-origin: center center;
+  transition: transform 140ms ease;
+  will-change: transform;
+}
+
+.wa-lightbox-caption {
+  margin: 0;
+  color: #c7d1d6;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .wa-composer {

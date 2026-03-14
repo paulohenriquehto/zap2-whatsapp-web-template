@@ -19,7 +19,7 @@ FROM base AS runner
 
 ENV HOSTNAME=0.0.0.0
 
-RUN mkdir -p /app/.auth/baileys
+RUN mkdir -p /app/.auth/baileys /app/storage/media
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/src/app/icon.svg ./src/app/icon.svg

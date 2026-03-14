@@ -13,6 +13,7 @@ services:
       DATABASE_URL: postgresql://zap2:zap2@postgres:5432/zap2
     volumes:
       - zap2_auth:/app/.auth
+      - zap2_media:/app/storage
     depends_on:
       postgres:
         condition: service_healthy
@@ -35,3 +36,4 @@ services:
 volumes:
   zap2_auth:
   zap2_postgres:
+  zap2_media:

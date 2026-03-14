@@ -4,5 +4,6 @@ npm-debug.log
 .DS_Store
 .git
 .auth
+storage
 docker-data
 zap2-qr-screen.png
